@@ -18,6 +18,7 @@ type OptionsDir struct {
 	IncludeLength              bool
 	Expanded                   bool
 	NoStatus                   bool
+	ScrapeWords                bool
 }
 
 // NewOptionsDir returns a new initialized OptionsDir
