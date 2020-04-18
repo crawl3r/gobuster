@@ -248,6 +248,14 @@ func (d *GobusterDir) ScrapeUniqueWords(body *[]byte, urlword string) {
 
 	// blit the output to disk (output directory, does this exist elsewhere in the project?)
 	targetwritename := urlword + ".txt"
+
+	// check if output dir exists, if not - make it. This should probably be done ONCE on start if we choose to scrape
+	// TODO, this ^
+
+	if _, err := os.Stat("output"); os.IsNotExist(err) {
+		os.Mkdir("output", os.ModePerm)
+	}
+
 	f, err := os.Create("output/" + targetwritename)
 	if err != nil {
 		fmt.Println(err)
