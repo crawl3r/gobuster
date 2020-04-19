@@ -110,6 +110,11 @@ func (d *GobusterDir) PreRun() error {
 		return fmt.Errorf("StatusCodes and StatusCodesBlacklist are both not set which should not happen")
 	}
 
+	// check if and set up the output directory (hardcoded to "output" for now)
+	if _, err := os.Stat("output"); os.IsNotExist(err) {
+		os.Mkdir("output", os.ModePerm)
+	}
+
 	return nil
 }
 
@@ -118,12 +123,6 @@ func (d *GobusterDir) Run(word string) ([]libgobuster.Result, error) {
 	suffix := ""
 	if d.options.UseSlash {
 		suffix = "/"
-	}
-
-	// check if output dir exists, if not - make it. This should probably be done ONCE on start if we choose to scrape
-	// TODO, check Run() is only ever called once as we don't need to check this folder exists multiple times
-	if _, err := os.Stat("output"); os.IsNotExist(err) {
-		os.Mkdir("output", os.ModePerm)
 	}
 
 	// Try the DIR first
@@ -217,7 +216,7 @@ func (d *GobusterDir) ScrapeUniqueWords(body *[]byte, urlword string) {
 	allwords := []string{}                // bank all our found words after splitting and finding legal entries
 	lines := strings.Split(alltext, "\n") // first split as the 'soup' result is a single string
 
-	// probably not optimised as much as it could be. Will update/change if I find nicer ways to do all this
+	// probably not optimised as much as it could be (or at all really). Will update/change if I find nicer ways to do all this
 	for _, l := range lines {
 		if l != "" {
 			words := strings.Split(l, " ") // split the line by spaces
@@ -229,6 +228,7 @@ func (d *GobusterDir) ScrapeUniqueWords(body *[]byte, urlword string) {
 					}
 				}
 
+				// now the word has been 'cleansed' from characters (blacklist based), we check the minlength of the entry
 				if len(w) >= minlength {
 					allwords = append(allwords, w)
 				}

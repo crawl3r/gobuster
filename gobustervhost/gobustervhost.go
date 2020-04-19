@@ -23,7 +23,7 @@ type GobusterVhost struct {
 	baseline2  []byte
 }
 
-// NewGobusterVhost creates a new initialized GobusterDir
+// NewGobusterVhost creates a new initialized GobusterVhost
 func NewGobusterVhost(cont context.Context, globalopts *libgobuster.Options, opts *OptionsVhost) (*GobusterVhost, error) {
 	if globalopts == nil {
 		return nil, fmt.Errorf("please provide valid global options")
@@ -57,7 +57,7 @@ func NewGobusterVhost(cont context.Context, globalopts *libgobuster.Options, opt
 	return &g, nil
 }
 
-// PreRun is the pre run implementation of gobusterdir
+// PreRun is the pre run implementation of GobusterVhost
 func (v *GobusterVhost) PreRun() error {
 
 	// add trailing slash
@@ -88,7 +88,7 @@ func (v *GobusterVhost) PreRun() error {
 	return nil
 }
 
-// Run is the process implementation of gobusterdir
+// Run is the process implementation of GobusterVhost
 func (v *GobusterVhost) Run(word string) ([]libgobuster.Result, error) {
 	subdomain := fmt.Sprintf("%s.%s", word, v.domain)
 	status, body, err := v.http.GetWithBody(v.options.URL, subdomain, v.options.Cookies)
@@ -117,7 +117,7 @@ func (v *GobusterVhost) Run(word string) ([]libgobuster.Result, error) {
 	return ret, nil
 }
 
-// ResultToString is the to string implementation of gobusterdir
+// ResultToString is the to string implementation of GobusterVhost
 func (v *GobusterVhost) ResultToString(r *libgobuster.Result) (*string, error) {
 	buf := &bytes.Buffer{}
 
