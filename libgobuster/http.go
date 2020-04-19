@@ -97,11 +97,6 @@ func (client *HTTPClient) Get(fullURL, host, cookie string) (*int, *int64, error
 	return client.requestWithoutBody(http.MethodGet, fullURL, host, cookie, nil)
 }
 
-// GetBody gets a URL with the body, unlike the Get function above
-func (client *HTTPClient) GetBody(fullURL, host, cookie string) (*int, *[]byte, error) {
-	return client.requestWithBody(http.MethodGet, fullURL, host, cookie, nil)
-}
-
 // Post posts to an URL and returns the status, the length and an error
 func (client *HTTPClient) Post(fullURL, host, cookie string, data io.Reader) (*int, *int64, error) {
 	return client.requestWithoutBody(http.MethodPost, fullURL, host, cookie, data)

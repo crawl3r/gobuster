@@ -36,7 +36,7 @@ type GobusterDir struct {
 // the status code, length and an error
 func (d *GobusterDir) get(url string, grabwords bool) (*int, *int64, *[]byte, error) {
 	if grabwords {
-		statuscode, body, err := d.http.GetBody(url, "", d.options.Cookies)
+		statuscode, body, err := d.http.GetWithBody(url, "", d.options.Cookies)
 		return statuscode, nil, body, err
 	}
 
@@ -120,9 +120,15 @@ func (d *GobusterDir) Run(word string) ([]libgobuster.Result, error) {
 		suffix = "/"
 	}
 
+	// check if output dir exists, if not - make it. This should probably be done ONCE on start if we choose to scrape
+	// TODO, check Run() is only ever called once as we don't need to check this folder exists multiple times
+	if _, err := os.Stat("output"); os.IsNotExist(err) {
+		os.Mkdir("output", os.ModePerm)
+	}
+
 	// Try the DIR first
 	url := fmt.Sprintf("%s%s%s", d.options.URL, word, suffix)
-	dirResp, dirSize, _, err := d.get(url, d.options.ScrapeWords)
+	dirResp, dirSize, _, err := d.get(url, false) // we don't care about the body if we are only checking for dir
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +162,7 @@ func (d *GobusterDir) Run(word string) ([]libgobuster.Result, error) {
 	for ext := range d.options.ExtensionsParsed.Set {
 		file := fmt.Sprintf("%s.%s", word, ext)
 		url = fmt.Sprintf("%s%s", d.options.URL, file)
-		fileResp, fileSize, body, err := d.get(url, d.options.ScrapeWords)
+		fileResp, fileSize, body, err := d.get(url, d.options.ScrapeWords) // we now care about this flag value for files
 
 		if body == nil {
 			fmt.Println("Body == nil???")
@@ -248,13 +254,6 @@ func (d *GobusterDir) ScrapeUniqueWords(body *[]byte, urlword string) {
 
 	// blit the output to disk (output directory, does this exist elsewhere in the project?)
 	targetwritename := urlword + ".txt"
-
-	// check if output dir exists, if not - make it. This should probably be done ONCE on start if we choose to scrape
-	// TODO, this ^
-
-	if _, err := os.Stat("output"); os.IsNotExist(err) {
-		os.Mkdir("output", os.ModePerm)
-	}
 
 	f, err := os.Create("output/" + targetwritename)
 	if err != nil {
