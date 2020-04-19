@@ -208,7 +208,7 @@ func (d *GobusterDir) Run(word string) ([]libgobuster.Result, error) {
 
 // ScrapeUniqueWords obtains all unique words from the downloaded page to use as a wordlist
 func (d *GobusterDir) ScrapeUniqueWords(body *[]byte, urlword string) {
-	minlength := 4                                            // flag or keep default/hardcoded?
+	minlength := d.options.ScrapeWords                        // this should always be greater than 0 if we are here
 	charblacklist := "!@£$%^&*()#€-=_+;:'\"\\/?<>,.`~|§±[]}{" // lol? used a bit further down
 
 	doc := soup.HTMLParse(string(*body)) // use 'soup', not 100% checked the codebase to check it's okay but seems fine
@@ -220,9 +220,8 @@ func (d *GobusterDir) ScrapeUniqueWords(body *[]byte, urlword string) {
 	// probably not optimised as much as it could be. Will update/change if I find nicer ways to do all this
 	for _, l := range lines {
 		if l != "" {
-			words := strings.Split(l, " ")
+			words := strings.Split(l, " ") // split the line by spaces
 			for _, w := range words {
-
 				// this feels meh, but we need to strip anything that isn't a letter or number from here (comma, fullstops, etc)
 				for _, char := range w {
 					if strings.Contains(charblacklist, strings.ToLower(string(char))) {
@@ -246,17 +245,9 @@ func (d *GobusterDir) ScrapeUniqueWords(body *[]byte, urlword string) {
 		finalwords = append(finalwords, w)
 	}
 
-	/*
-		fmt.Println("Total words: ", len(finalwords))
-		for _, w := range finalwords {
-			fmt.Println(w)
-		}
-	*/
-
 	// blit the output to disk (output directory, does this exist elsewhere in the project?)
 	targetwritename := urlword + ".txt"
-
-	f, err := os.Create("output/" + targetwritename)
+	f, err := os.Create("output/" + targetwritename) // output dir is checked at start of Run() this should exist
 	if err != nil {
 		fmt.Println(err)
 		f.Close()
@@ -275,16 +266,6 @@ func (d *GobusterDir) ScrapeUniqueWords(body *[]byte, urlword string) {
 		fmt.Println(err)
 		return
 	}
-}
-
-// used above, move to a util script? ref: https://ispycode.com/GO/Collections/Arrays/Check-if-item-is-in-array
-func contains(arr []string, str string) bool {
-	for _, a := range arr {
-		if a == str {
-			return true
-		}
-	}
-	return false
 }
 
 // ResultToString is the to string implementation of gobusterdir
@@ -462,4 +443,15 @@ func (d *GobusterDir) GetConfigString() (string, error) {
 	}
 
 	return strings.TrimSpace(buffer.String()), nil
+}
+
+// used with char blacklist above (ref: https://ispycode.com/GO/Collections/Arrays/Check-if-item-is-in-array)
+// TODO: move this to a util script or something if one exists?
+func contains(arr []string, str string) bool {
+	for _, a := range arr {
+		if a == str {
+			return true
+		}
+	}
+	return false
 }
