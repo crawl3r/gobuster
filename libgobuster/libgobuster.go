@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -128,26 +129,106 @@ func (g *Gobuster) getWordlist() (*bufio.Scanner, error) {
 		// Read directly from stdin
 		return bufio.NewScanner(os.Stdin), nil
 	}
-	// Pull content from the wordlist
-	wordlist, err := os.Open(g.Opts.Wordlist)
+
+	// check if wordlist is a directory or a file
+	fi, err := os.Stat(g.Opts.Wordlist)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open wordlist: %v", err)
+		return nil, fmt.Errorf("Failed to stat wordlist: %v", err)
 	}
 
-	lines, err := lineCounter(wordlist)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get number of lines: %v", err)
-	}
+	mode := fi.Mode()
+	// is file
+	if mode.IsRegular() {
+		// Pull content from the wordlist
+		wordlist, err := os.Open(g.Opts.Wordlist)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open wordlist: %v", err)
+		}
 
-	g.requestsExpected = lines
-	g.requestsIssued = 0
+		lines, err := lineCounter(wordlist)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get number of lines: %v", err)
+		}
 
-	// rewind wordlist
-	_, err = wordlist.Seek(0, 0)
-	if err != nil {
-		return nil, fmt.Errorf("failed to rewind wordlist: %v", err)
+		g.requestsExpected = lines
+		g.requestsIssued = 0
+
+		// rewind wordlist
+		_, err = wordlist.Seek(0, 0)
+		if err != nil {
+			return nil, fmt.Errorf("failed to rewind wordlist: %v", err)
+		}
+		return bufio.NewScanner(wordlist), nil
+		// is directory
+	} else {
+		// get all files in directory, just assume they are all wordlists (user's responsibility) -> doesn't do sub-dirs at this time, change to walkpath?
+		files, err := ioutil.ReadDir(g.Opts.Wordlist)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read wordlist directory: %v", err)
+		}
+
+		// i dont like this, but couldn't think of another way to do it right now
+		allfilecontents := []string{}
+		for _, f := range files {
+			// Pull content from the wordlist
+			filewords, err := os.Open(g.Opts.Wordlist + "/" + f.Name())
+			if err != nil {
+				return nil, fmt.Errorf("failed to open wordlist: %v", err)
+			}
+
+			fileScanner := bufio.NewScanner(filewords)
+			fileScanner.Split(bufio.ScanLines)
+
+			for fileScanner.Scan() {
+				allfilecontents = append(allfilecontents, fileScanner.Text())
+			}
+		}
+
+		// write the single wordlist to disk for usage here (still don't like this. Perhaps we can concat Scanners together to return one?)
+		// maybe even return a slice/list of scanners that we loop through? So for a single file its a single element slice, multi is multiple?
+		targetwritename := "compiledwordlist.txt"
+		f, err := os.Create(targetwritename)
+		if err != nil {
+			fmt.Println(err)
+			f.Close()
+			return nil, fmt.Errorf("failed to save temporary wordlist: %v", err)
+		}
+
+		for _, w := range allfilecontents {
+			fmt.Fprintln(f, w)
+			if err != nil {
+				fmt.Println(err)
+				return nil, fmt.Errorf("failed to write to temporary wordlist: %v", err)
+			}
+		}
+		err = f.Close()
+		if err != nil {
+			fmt.Println(err)
+			return nil, fmt.Errorf("failed to close temporary wordlist: %v", err)
+		}
+
+		// Set and pull content from the temporay itself wordlist
+		g.Opts.Wordlist = targetwritename
+		wordlist, err := os.Open(g.Opts.Wordlist)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open wordlist: %v", err)
+		}
+
+		lines, err := lineCounter(wordlist)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get number of lines: %v", err)
+		}
+
+		g.requestsExpected = lines
+		g.requestsIssued = 0
+
+		// rewind wordlist
+		_, err = wordlist.Seek(0, 0)
+		if err != nil {
+			return nil, fmt.Errorf("failed to rewind wordlist: %v", err)
+		}
+		return bufio.NewScanner(wordlist), nil
 	}
-	return bufio.NewScanner(wordlist), nil
 }
 
 // Start the busting of the website with the given

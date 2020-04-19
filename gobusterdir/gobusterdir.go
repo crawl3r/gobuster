@@ -208,7 +208,7 @@ func (d *GobusterDir) Run(word string) ([]libgobuster.Result, error) {
 // ScrapeUniqueWords obtains all unique words from the downloaded page to use as a wordlist
 func (d *GobusterDir) ScrapeUniqueWords(body *[]byte, urlword string) {
 	minlength := d.options.ScrapeWords                        // this should always be greater than 0 if we are here
-	charblacklist := "!@£$%^&*()#€-=_+;:'\"\\/?<>,.`~|§±[]}{" // lol? used a bit further down
+	charblacklist := "!@£$%^&*()#€-=_+;:'\"\\/?<>,.`~|§±[]}{" // lol? used a bit further down - this will probably be dynamic based on usage results
 
 	doc := soup.HTMLParse(string(*body)) // use 'soup', not 100% checked the codebase to check it's okay but seems fine
 	alltext := doc.FullText()
@@ -246,6 +246,7 @@ func (d *GobusterDir) ScrapeUniqueWords(body *[]byte, urlword string) {
 	}
 
 	// blit the output to disk (output directory, does this exist elsewhere in the project?)
+	// maybe use writeToFile in gobuster.go?
 	targetwritename := urlword + ".txt"
 	f, err := os.Create("output/" + targetwritename) // output dir is checked at start of Run() this should exist
 	if err != nil {
