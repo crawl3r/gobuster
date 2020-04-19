@@ -162,10 +162,11 @@ func (d *GobusterDir) Run(word string) ([]libgobuster.Result, error) {
 	for ext := range d.options.ExtensionsParsed.Set {
 		file := fmt.Sprintf("%s.%s", word, ext)
 		url = fmt.Sprintf("%s%s", d.options.URL, file)
-		fileResp, fileSize, body, err := d.get(url, d.options.ScrapeWords) // we now care about this flag value for files
+		fileResp, fileSize, body, err := d.get(url, d.options.ScrapeWords > 0) // we now care about this flag value for files
 
-		if body == nil {
-			fmt.Println("Body == nil???")
+		// bit annoying to have this check, but just incase we try to scrape and get null bodies back
+		if body == nil && d.options.ScrapeWords > 0 {
+			return nil, fmt.Errorf("Response body was nil, even though we want to scrape words? Edge case?")
 		}
 
 		if err != nil {
@@ -189,7 +190,7 @@ func (d *GobusterDir) Run(word string) ([]libgobuster.Result, error) {
 
 			if resultStatus == libgobuster.StatusFound || d.globalopts.Verbose {
 				// are we wanting to save the request bodies for grabbing unique words?
-				if d.options.ScrapeWords {
+				if d.options.ScrapeWords > 0 {
 					d.ScrapeUniqueWords(body, word)
 				}
 
@@ -446,8 +447,8 @@ func (d *GobusterDir) GetConfigString() (string, error) {
 		return "", err
 	}
 
-	if o.ScrapeWords {
-		if _, err := fmt.Fprintf(tw, "[+] Scraping Unique Words:\ttrue (min length: 4, dir: output/*.txt)\n"); err != nil {
+	if o.ScrapeWords > 0 {
+		if _, err := fmt.Fprintf(tw, "[+] Scraping Unique Words:\ttrue (min length: %d, dir: output/*.txt)\n", o.ScrapeWords); err != nil {
 			return "", err
 		}
 	}
