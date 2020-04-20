@@ -184,7 +184,6 @@ func (g *Gobuster) getWordlist() (*[]bufio.Scanner, error) {
 
 	// pretty happy with how this turned out, seems to work fine - didn't realise it would be a thing!
 	for _, f := range files {
-		fmt.Println("Creating scanner for ", f.Name())
 		// Pull content from the wordlist
 		filewords, err := os.Open(g.Opts.Wordlist + "/" + f.Name())
 		if err != nil {
@@ -196,7 +195,6 @@ func (g *Gobuster) getWordlist() (*[]bufio.Scanner, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to get number of lines: %v", err)
 		}
-		fmt.Println("Lines found: ", templines)
 
 		// add to total line count
 		lines += templines
