@@ -124,10 +124,15 @@ func (g *Gobuster) worker(wordChan <-chan string, wg *sync.WaitGroup) {
 	}
 }
 
-func (g *Gobuster) getWordlist() (*bufio.Scanner, error) {
+// getWordlist() converted to return multiple scanners instead of one. This allows a directory of wordlists to be loaded \o/
+func (g *Gobuster) getWordlist() (*[]bufio.Scanner, error) {
 	if g.Opts.Wordlist == "-" {
 		// Read directly from stdin
-		return bufio.NewScanner(os.Stdin), nil
+		// return bufio.NewScanner(os.Stdin)
+		scanner := bufio.NewScanner(os.Stdin)
+		scannerarray := []bufio.Scanner{}
+		scannerarray = append(scannerarray, *scanner)
+		return &scannerarray, nil
 	}
 
 	// check if wordlist is a directory or a file
@@ -137,6 +142,7 @@ func (g *Gobuster) getWordlist() (*bufio.Scanner, error) {
 	}
 
 	mode := fi.Mode()
+
 	// is file
 	if mode.IsRegular() {
 		// Pull content from the wordlist
@@ -158,77 +164,57 @@ func (g *Gobuster) getWordlist() (*bufio.Scanner, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to rewind wordlist: %v", err)
 		}
-		return bufio.NewScanner(wordlist), nil
-		// is directory
-	} else {
-		// get all files in directory, just assume they are all wordlists (user's responsibility) -> doesn't do sub-dirs at this time, change to walkpath?
-		files, err := ioutil.ReadDir(g.Opts.Wordlist)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read wordlist directory: %v", err)
-		}
+		scanner := bufio.NewScanner(os.Stdin)
+		scannerarray := []bufio.Scanner{}
+		scannerarray = append(scannerarray, *scanner)
+		return &scannerarray, nil
+	}
 
-		// i dont like this, but couldn't think of another way to do it right now
-		allfilecontents := []string{}
-		for _, f := range files {
-			// Pull content from the wordlist
-			filewords, err := os.Open(g.Opts.Wordlist + "/" + f.Name())
-			if err != nil {
-				return nil, fmt.Errorf("failed to open wordlist: %v", err)
-			}
+	// if we didn't return out the above block, we must be looking at a directory
 
-			fileScanner := bufio.NewScanner(filewords)
-			fileScanner.Split(bufio.ScanLines)
+	// get all files in directory, just assume they are all wordlists (user's responsibility) -> doesn't do sub-dirs at this time, change to walkpath?
+	files, err := ioutil.ReadDir(g.Opts.Wordlist)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read wordlist directory: %v", err)
+	}
 
-			for fileScanner.Scan() {
-				allfilecontents = append(allfilecontents, fileScanner.Text())
-			}
-		}
+	// start building our array of scanners
+	scannerarray := []bufio.Scanner{}
+	lines := 0
 
-		// write the single wordlist to disk for usage here (still don't like this. Perhaps we can concat Scanners together to return one?)
-		// maybe even return a slice/list of scanners that we loop through? So for a single file its a single element slice, multi is multiple?
-		targetwritename := "compiledwordlist.txt"
-		f, err := os.Create(targetwritename)
-		if err != nil {
-			fmt.Println(err)
-			f.Close()
-			return nil, fmt.Errorf("failed to save temporary wordlist: %v", err)
-		}
-
-		for _, w := range allfilecontents {
-			fmt.Fprintln(f, w)
-			if err != nil {
-				fmt.Println(err)
-				return nil, fmt.Errorf("failed to write to temporary wordlist: %v", err)
-			}
-		}
-		err = f.Close()
-		if err != nil {
-			fmt.Println(err)
-			return nil, fmt.Errorf("failed to close temporary wordlist: %v", err)
-		}
-
-		// Set and pull content from the temporay itself wordlist
-		g.Opts.Wordlist = targetwritename
-		wordlist, err := os.Open(g.Opts.Wordlist)
+	// pretty happy with how this turned out, seems to work fine - didn't realise it would be a thing!
+	for _, f := range files {
+		fmt.Println("Creating scanner for ", f.Name())
+		// Pull content from the wordlist
+		filewords, err := os.Open(g.Opts.Wordlist + "/" + f.Name())
 		if err != nil {
 			return nil, fmt.Errorf("failed to open wordlist: %v", err)
 		}
 
-		lines, err := lineCounter(wordlist)
+		// get current file line count
+		templines, err := lineCounter(filewords)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get number of lines: %v", err)
 		}
+		fmt.Println("Lines found: ", templines)
 
-		g.requestsExpected = lines
-		g.requestsIssued = 0
+		// add to total line count
+		lines += templines
 
-		// rewind wordlist
-		_, err = wordlist.Seek(0, 0)
+		// rewind current wordlist
+		_, err = filewords.Seek(0, 0)
 		if err != nil {
 			return nil, fmt.Errorf("failed to rewind wordlist: %v", err)
 		}
-		return bufio.NewScanner(wordlist), nil
+
+		filescanner := bufio.NewScanner(filewords)
+		scannerarray = append(scannerarray, *filescanner)
 	}
+
+	g.requestsExpected = lines
+	g.requestsIssued = 0
+
+	return &scannerarray, nil
 }
 
 // Start the busting of the website with the given
@@ -252,17 +238,23 @@ func (g *Gobuster) Start() error {
 		go g.worker(wordChan, &workerGroup)
 	}
 
-	scanner, err := g.getWordlist()
+	// This now return's multiple wordlists, but will only be 1 scanner if 1 wordlist -> multiple if wordlist directory chosen on CLI
+	scanners, err := g.getWordlist()
 	if err != nil {
 		return err
 	}
 
 Scan:
-	for scanner.Scan() {
-		select {
-		case <-g.context.Done():
-			break Scan
-		case wordChan <- scanner.Text():
+	// Is this derpy?! In theory it will work and complete 1 wordlist at a time in the order of the files?
+	// Update: doesn't seem as derpy as I thought. Seems to work fine during my test runs. Someone else confirm.
+	// Memory might be mental if like 10 MASSIVE lists are loaded though - but users be users.
+	for _, s := range *scanners {
+		for s.Scan() {
+			select {
+			case <-g.context.Done():
+				break Scan
+			case wordChan <- s.Text():
+			}
 		}
 	}
 	close(wordChan)
